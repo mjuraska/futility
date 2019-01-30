@@ -680,7 +680,7 @@ completeTrial.pooledArms <-
     #follow up time for each subject
     tFU<-ifelse(interimData$followup==1,interimData$last_visit_dt-interimData$entry,interimData$exit-interimData$entry)
     #sum of follow up time for everyone in the interim data
-    totFU<-sum(tFU)
+    totFU<-sum(tFU, na.rm=TRUE)
 
     #calculate dropout rate based on interimData, rate=observed dropout per person-week
     dropRate<-sum(interimData$dropout)/totFU
@@ -958,7 +958,7 @@ completeTrial.byArm <-
     #follow up time for each subject
     tFU<-ifelse(interimData$followup==1,interimData$last_visit_dt-interimData$entry,interimData$exit-interimData$entry)
     #sum of follow up time for everyone in the interim data
-    totFU<-sum(tFU)
+    totFU<-sum(tFU, na.rm=TRUE)
 
     #calculate arm-pooled dropout rate based on interimData, rate=observed dropout per person-week
     dropRate<-sum(interimData$dropout)/totFU
@@ -979,7 +979,7 @@ completeTrial.byArm <-
     #arm specific follow up time for each subject
     T_k<-NULL
     for(i in 1:nArms){
-      T_k<-c(T_k,sum(tFU[interimData$arm==trtNames[i]]))
+      T_k<-c(T_k,sum(tFU[interimData$arm==trtNames[i]], na.rm=TRUE))
     }
 
     #change unit of per person-year to per person-week
@@ -1364,7 +1364,7 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
   if(is.null(ylab)){mtext("P( Total Number of Infections >= n ) x 100", side=2, las=0, line=2.5, cex=mycex2)
   }else{mtext(ylab, side=2, las=0, line=2.5, cex=mycex2)}
 
-  legend(0.77*max(x.label),1,legend=round(c(dat[[1]]$legend.Prior.weight,dat[[2]]$legend.Prior.weight,dat[[3]]$legend.Prior.weight),2), cex=0.7, col=colors, pch=pchar,
+  legend((xPosLegend+0.1)*max(x.label),0.9,legend=round(c(dat[[1]]$legend.Prior.weight,dat[[2]]$legend.Prior.weight,dat[[3]]$legend.Prior.weight),2), cex=0.7, col=colors, pch=pchar,
          lty=1, bty = "n", title="Prior weight")
 
   legend.text <- NULL
@@ -1372,7 +1372,7 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
     legend.text <- c(legend.text, paste0("P(>=",target[1],") = ",format(dat[[j]]$target.p[[1]]$p*100, digits=1, nsmall=1-(dat[[j]]$target.p[[1]]$p>=0.9995)),"% (95% CI, ",format(dat[[j]]$target.p[[1]]$p.CI[1]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[1]]$p.CI[1]>=0.9995))," to ",format(dat[[j]]$target.p[[1]]$p.CI[2]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[1]]$p.CI[2]>=0.9995)),")","\n",
                                          "P(>=",target[2],") = ",format(dat[[j]]$target.p[[2]]$p*100, digits=1, nsmall=1-(dat[[j]]$target.p[[2]]$p>=0.9995)),"% (95% CI, ",format(dat[[j]]$target.p[[2]]$p.CI[1]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[2]]$p.CI[1]>=0.9995))," to ",format(dat[[j]]$target.p[[2]]$p.CI[2]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[2]]$p.CI[2]>=0.9995)),")"))
   }
-  legend(xPosLegend*max(x.label), 0.8, lty=1, col=colors, pch=pchar, bty="n", cex=0.5, legend=legend.text, x.intersp=0.5, y.intersp=1.6, pt.cex=0.7)
+  legend(xPosLegend*max(x.label), 0.7, lty=1, col=colors, pch=pchar, bty="n", cex=0.5, legend=legend.text, x.intersp=0.5, y.intersp=1.6, pt.cex=0.7)
 
   if(power.axis==TRUE){
     if(!is.numeric(power.TE)){
