@@ -5,8 +5,8 @@
 \title{Plot Characteristics of the Estimated Distribution of the Treatment Arm-Specific Number of Endpoints}
 \usage{
 plotRCDF.byArm(arm, eventTimeFrame = NULL, eventPPcohort = FALSE,
-  eventPriorRate, eventPriorWeight, xlim = NULL, xlab = NULL, ylab = NULL,
-  fileDir)
+  eventPriorRate, eventPriorWeight, xlim = NULL, xlab = NULL,
+  ylab = NULL, fileDir)
 }
 \arguments{
 \item{arm}{a character string matching a treatment label in the \code{arm} variable in \code{interimData} that indicates the treatment arm for which the plot will be generated}

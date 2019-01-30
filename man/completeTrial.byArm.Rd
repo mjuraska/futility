@@ -5,9 +5,10 @@
 \title{Treatment Arm-Specific Simulation-Based Completion of a Randomized Efficacy Trial with a Time-to-Event Endpoint and Fixed Follow-up Using an Interim Data-set}
 \usage{
 completeTrial.byArm(interimData, nTrials, trtNames, N, enrollRate = NULL,
-  enrollRatePeriod, eventPriorWeight, eventPriorRate, fixedDropOutRate = NULL,
-  missVaccProb = NULL, fuTime, visitSchedule, visitSchedule2 = NULL,
-  saveFile = NULL, saveDir = NULL, randomSeed = NULL)
+  enrollRatePeriod, eventPriorWeight, eventPriorRate,
+  fixedDropOutRate = NULL, missVaccProb = NULL, fuTime, visitSchedule,
+  visitSchedule2 = NULL, saveFile = NULL, saveDir = NULL,
+  randomSeed = NULL)
 }
 \arguments{
 \item{interimData}{a data frame capturing observed data at an interim timepoint that contains one row per enrolled participant and the following variables: \code{arm} (treatment arm), \code{schedule2} (an indicator that a participant follows the \code{visitSchedule2} schedule, e.g., participants who discontinue study product administration may remain in primary follow-up on a different schedule), \code{entry} (number of weeks since the reference date until the enrollment date), \code{exit} (number of weeks since the reference date until the trial exit date defined as the date of either infection diagnosis, dropout, or primary follow-up completion, whichever occurs first; \code{NA} for participants still in primary follow-up), \code{last_visit_dt} (number of weeks since the reference date until the last visit date), \code{event} (event indicator), \code{dropout} (dropout indicator), \code{complete} (indicator of completed follow-up), \code{followup} (indicator of being in primary follow-up). The reference date is defined as the enrollment date of the first participant. The variables \code{entry}, \code{exit}, and \code{last_visit_dt} use week as the unit of time. Month is defined as 52/12 weeks.}

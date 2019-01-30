@@ -4,9 +4,10 @@
 \alias{plotRCDF.pooledArms}
 \title{Plot Characteristics of the Estimated Distribution of the Treatment Arm-Pooled Number of Endpoints}
 \usage{
-plotRCDF.pooledArms(eventTimeFrame = NULL, eventPPcohort = FALSE, target,
-  power.axis = TRUE, power.TE = NULL, eventPriorRate, eventPriorWeight,
-  xlim = NULL, xlab = NULL, ylab = NULL, power.lab = NULL, fileDir)
+plotRCDF.pooledArms(eventTimeFrame = NULL, eventPPcohort = FALSE,
+  target, power.axis = TRUE, power.TE = NULL, eventPriorRate,
+  eventPriorWeight, xlim = NULL, xlab = NULL, ylab = NULL,
+  power.lab = NULL, xPosLegend = 0.67, fileDir)
 }
 \arguments{
 \item{eventTimeFrame}{a time frame within which endpoints are counted, specified in weeks as \code{c(start, end)}. If \code{NULL} (default), then all endpoints are counted.}
