@@ -6,12 +6,13 @@
 \usage{
 completeTrial.byArm(interimData, nTrials, trtNames, N, enrollRate = NULL,
   enrollRatePeriod, eventPriorWeight, eventPriorRate,
-  fixedDropOutRate = NULL, missVaccProb = NULL, fuTime, visitSchedule,
+  fixedDropOutRate = NULL, ppAnalysis = FALSE, missVaccProb = NULL,
+  ppAtRiskTimePoint = NULL, fuTime, visitSchedule,
   visitSchedule2 = NULL, saveFile = NULL, saveDir = NULL,
   randomSeed = NULL)
 }
 \arguments{
-\item{interimData}{a data frame capturing observed data at an interim timepoint that contains one row per enrolled participant and the following variables: \code{arm} (treatment arm), \code{schedule2} (an indicator that a participant follows the \code{visitSchedule2} schedule, e.g., participants who discontinue study product administration may remain in primary follow-up on a different schedule), \code{entry} (number of weeks since the reference date until the enrollment date), \code{exit} (number of weeks since the reference date until the trial exit date defined as the date of either infection diagnosis, dropout, or primary follow-up completion, whichever occurs first; \code{NA} for participants still in primary follow-up), \code{last_visit_dt} (number of weeks since the reference date until the last visit date), \code{event} (event indicator), \code{dropout} (dropout indicator), \code{complete} (indicator of completed follow-up), \code{followup} (indicator of being in primary follow-up). The reference date is defined as the enrollment date of the first participant. The variables \code{entry}, \code{exit}, and \code{last_visit_dt} use week as the unit of time. Month is defined as 52/12 weeks.}
+\item{interimData}{a data frame capturing observed MITT data at an interim timepoint that contains one row per enrolled participant in the MITT cohort and the following variables: \code{arm} (treatment arm), \code{schedule2} (an indicator that a participant follows the \code{visitSchedule2} schedule, e.g., participants who discontinue study product administration may remain in primary follow-up on a different schedule), \code{entry} (number of weeks since the reference date until the enrollment date), \code{exit} (number of weeks since the reference date until the trial exit date defined as the date of either infection diagnosis, dropout, or primary follow-up completion, whichever occurs first; \code{NA} for participants still in primary follow-up), \code{last_visit_dt} (number of weeks since the reference date until the last visit date), \code{event} (event indicator), \code{dropout} (dropout indicator), \code{complete} (indicator of completed follow-up), \code{followup} (indicator of being in primary follow-up). The reference date is defined as the enrollment date of the first participant. The variables \code{entry}, \code{exit}, and \code{last_visit_dt} use week as the unit of time. Month is defined as 52/12 weeks.}
 
 \item{nTrials}{the number of trials to be simulated}
 
@@ -29,7 +30,11 @@ completeTrial.byArm(interimData, nTrials, trtNames, N, enrollRate = NULL,
 
 \item{fixedDropOutRate}{the pre-trial assumed annual treatment arm-pooled dropout rate. If \code{NULL} (default), then the observed treatment arm-pooled dropout rate is used.}
 
-\item{missVaccProb}{a probability of being excluded from the per-protocol cohort. If \code{NULL} (default), no per-protocol indicator is generated; if specified, the indicator is sampled from the Bernoulli distribution with probability \code{missVaccProb}.}
+\item{ppAnalysis}{a logical value (\code{FALSE} by default) indicating whether an indicator of membership in the per-protocol cohort shall be generated based on complete MITT data. If \code{TRUE}, then \code{interimData} must include two additional variables: \code{missVacc} (an indicator of a missed vaccination) and \code{pp} (an indicator of membership in the per-protocol cohort; \code{NA} for participants with an indeterminate status).}
+
+\item{missVaccProb}{a probability that a participant misses at least one vaccination. If \code{NULL} (default) and \code{ppAnalysis=TRUE}, then \code{missVaccProb} is calculated as the sample proportion of MITT participants in \code{interimData} with a missed vaccination using the \code{missVacc} variable. If \code{ppAnalysis=TRUE}, then the indicator of a missed vaccination for participants in \code{interimData} with \code{pp=NA} and future enrolled participants is sampled from the Bernoulli distribution with probability \code{missVaccProb}.}
+
+\item{ppAtRiskTimePoint}{a minimal follow-up time (in weeks) for a participant to qualify for inclusion in the per-protocol cohort (\code{NULL} by default)}
 
 \item{fuTime}{a follow-up time (in weeks) of each participant}
 
@@ -46,13 +51,13 @@ completeTrial.byArm(interimData, nTrials, trtNames, N, enrollRate = NULL,
 \value{
 If \code{saveDir} is specified, the output list (named \code{trialObj}) is saved as an \code{.RData} file; otherwise it is returned. The output object is a list with the following components:
 \itemize{
-\item \code{trialData}: a list with \code{nTrials} components each of which is a \code{data.frame} with the variables \code{arm}, \code{entry}, \code{exit}, \code{event}, and \code{dropout} storing the treatment assignments, enrollment times, study exit times, event indicators, and dropout indicators, respectively. The observed follow-up times can be recovered as \code{exit} - \code{entry}. Indicators of belonging to the per-protocol cohort (named \code{pp}) are included if \code{missVaccProb} is specified.
+\item \code{trialData}: a list with \code{nTrials} components each of which is a \code{data.frame} with the variables \code{arm}, \code{entry}, \code{exit}, \code{event}, and \code{dropout} storing the treatment assignments, enrollment times, study exit times, event indicators, and dropout indicators, respectively. The observed follow-up times can be recovered as \code{exit} - \code{entry}. If \code{ppAnalysis=TRUE}, then the indicators of belonging to the per-protocol cohort (named \code{pp}) are included.
 \item \code{nTrials}: the number of simulated trials
 \item \code{N}: the total number of enrolled trial participants
 \item \code{rates}: a list with three components:
 \itemize{
 \item \code{enrollRate}: the treatment arm-pooled \emph{weekly} enrollment rate
-\item \code{dropRate}: \code{fixedDropOutRate}, or, if \code{NULL}, the average \emph{annual} treatment arm-pooled dropout rate in \code{interimData}
+\item \code{dropRate}: \code{fixedDropOutRate}, or, if \code{NULL}, the \emph{annual} treatment arm-pooled dropout rate in \code{interimData}
 \item \code{eventPostRate}: a list with \code{length(trtNames)} components (labeled by the levels of the \code{arm} variable in \code{interimData}) each of which is a numeric vector of length \code{nTrials} of the sampled treatment arm-specific posterior \emph{annual} event rates
 }
 \item \code{BetaOverBetaPlusTk}: a list with \code{length(trtNames)} components (labeled by the levels of the \code{arm} variable in \code{interimData}) each of which is the arm-specific weight placed on the prior mean event rate
@@ -61,7 +66,7 @@ If \code{saveDir} is specified, the output list (named \code{trialObj}) is saved
 }
 }
 \description{
-Considers data collected through an interim timepoint and generates independent time-to-event data-sets, by treatment arm, to assess the distribution of the number of treatment arm-specific endpoints
+Considers MITT data collected through an interim timepoint and generates independent time-to-event data-sets, by treatment arm, to assess the distribution of the number of treatment arm-specific endpoints
 at the end of the follow-up period. A Bayesian model for treatment arm-specific endpoint rates is used for generating future data (see the vignette).
 }
 \examples{

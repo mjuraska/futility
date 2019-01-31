@@ -62,7 +62,7 @@ If \code{saveDir} is specified, the output list (named \code{trialObj}) is saved
 \item \code{rates}: a list with three components:
 \itemize{
 \item \code{enrollRate}: the treatment arm-pooled \emph{weekly} enrollment rate
-\item \code{dropRate}: \code{fixedDropOutRate}, or, if \code{NULL}, the average \emph{annual} treatment arm-pooled dropout rate in \code{interimData}
+\item \code{dropRate}: \code{fixedDropOutRate}, or, if \code{NULL}, the \emph{annual} treatment arm-pooled dropout rate in \code{interimData}
 \item \code{eventPostRate}: a numeric vector of length \code{nTrials} of the treatment arm-pooled \emph{annual} event rates sampled from the posterior distribution
 }
 \item \code{BetaOverBetaPlusTk}: the weight placed on the prior mean event rate

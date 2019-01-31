@@ -4,18 +4,20 @@
 \alias{plotRCDF.byArm}
 \title{Plot Characteristics of the Estimated Distribution of the Treatment Arm-Specific Number of Endpoints}
 \usage{
-plotRCDF.byArm(arm, eventTimeFrame = NULL, eventPPcohort = FALSE,
-  eventPriorRate, eventPriorWeight, xlim = NULL, xlab = NULL,
-  ylab = NULL, fileDir)
+plotRCDF.byArm(arm, trtNames, eventTimeFrame = NULL,
+  eventPPcohort = FALSE, eventPriorRate, eventPriorWeight, xlim = NULL,
+  xlab = NULL, ylab = NULL, fileDir)
 }
 \arguments{
 \item{arm}{a character string matching a treatment label in the \code{arm} variable in \code{interimData} that indicates the treatment arm for which the plot will be generated}
+
+\item{trtNames}{a character vector of all treatment labels listed in the same order as in \code{trtNames} in \code{\link{completeTrial.byArm}}}
 
 \item{eventTimeFrame}{a time frame within which endpoints are counted, specified in weeks as \code{c(start, end)}. If \code{NULL} (default), then all endpoints are counted.}
 
 \item{eventPPcohort}{a logical value. If \code{TRUE}, only endpoints in the per-protocol cohort are counted. The default value is \code{FALSE}.}
 
-\item{eventPriorRate}{a numeric vector of treatment arm-specific prior mean incidence rates for the endpoint, expressed as numbers of events per person-year at risk, with the arms in the same order as in the equally named input argument in the \code{\link{completeTrial.byArm}} function}
+\item{eventPriorRate}{a numeric vector of treatment arm-specific prior mean incidence rates for the endpoint, expressed as numbers of events per person-year at risk, matching the order of treatment arms in \code{trtNames}}
 
 \item{eventPriorWeight}{a numeric vector in which each value represents a weight (i.e., a separate scenario) assigned to the prior gamma distribution of the treatment arm-specific event rate at the time when 50\% of the estimated person-time at risk in the given \code{arm} has been accumulated}
 
@@ -61,8 +63,8 @@ for (j in 1:length(weights)){
 pdf(file=paste0("./","rcdf_byArm_arm=T1_",
 "eventPriorRateC3=0.06_eventPriorRateT1=0.03_eventPriorRateT2=0.03.pdf"), width=6,
 height=5)
-plotRCDF.byArm(arm="T1", eventPriorRate=c(0.06,0.03,0.03), eventPriorWeight=weights,
-fileDir="./")
+plotRCDF.byArm(arm="T1", trtNames=c("C3","T1","T2"), eventPriorRate=c(0.06,0.03,0.03),
+eventPriorWeight=weights, fileDir="./")
 dev.off()
 
 }

@@ -18,8 +18,8 @@
 \author{}
 \date{}
 
-%\VignetteEngine{knitr::knitr}
-%\VignetteIndexEntry{Bayesian Model for Incidence Rate}
+% \VignetteEngine{knitr::knitr}
+% \VignetteIndexEntry{Bayesian Model for Incidence Rate}
 
 \begin{document}
 \maketitle
