@@ -1,0 +1,2 @@
+## futility: Interim Analysis of Operational Futility in Randomized Trials with Time-to-Event Endpoints and Fixed Follow-Up
+`futility` is an R package implementing estimation and inferential procedures for assessing operational futility in randomized treatment efficacy trials with time-to-event endpoints and fixed follow-up. The procedures condition on data observed through an interim timepoint. Inference can be restricted to a 'per-protocol' cohort. Plotting functions are provided for graphical display of results.
