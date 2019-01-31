@@ -601,7 +601,7 @@ FillinInterimdata.byArm <- function(interimData, rates, visitSchedule, visitSche
 #' \item \code{rates}: a list with three components:
 #' \itemize{
 #' \item \code{enrollRate}: the treatment arm-pooled \emph{weekly} enrollment rate
-#' \item \code{dropRate}: \code{fixedDropOutRate}, or, if \code{NULL}, the average \emph{annual} treatment arm-pooled dropout rate in \code{interimData}
+#' \item \code{dropRate}: \code{fixedDropOutRate}, or, if \code{NULL}, the \emph{annual} treatment arm-pooled dropout rate in \code{interimData}
 #' \item \code{eventPostRate}: a numeric vector of length \code{nTrials} of the treatment arm-pooled \emph{annual} event rates sampled from the posterior distribution
 #' }
 #' \item \code{BetaOverBetaPlusTk}: the weight placed on the prior mean event rate
@@ -825,7 +825,7 @@ completeTrial.pooledArms <-
       }
 
       ## generate data
-      out <- FillinInterimdata.Pooled(interimData=interimData,
+      trialList[[i]] <- FillinInterimdata.Pooled(interimData=interimData,
                                       rates = rates,
                                       visitSchedule = visitSchedule,
                                       visitSchedule2 = visitSchedule2,
@@ -835,8 +835,6 @@ completeTrial.pooledArms <-
                                       missVaccProb = missVaccProb,
                                       ppAtRiskTimePoint = ppAtRiskTimePoint,
                                       Seed = randomSeed+i)
-
-      trialList[[i]] <- out
 
       ## store sampled posterior event rate
       eventPostRate[i] <- eventRate
@@ -897,7 +895,7 @@ completeTrial.pooledArms <-
 #' \item \code{rates}: a list with three components:
 #' \itemize{
 #' \item \code{enrollRate}: the treatment arm-pooled \emph{weekly} enrollment rate
-#' \item \code{dropRate}: \code{fixedDropOutRate}, or, if \code{NULL}, the average \emph{annual} treatment arm-pooled dropout rate in \code{interimData}
+#' \item \code{dropRate}: \code{fixedDropOutRate}, or, if \code{NULL}, the \emph{annual} treatment arm-pooled dropout rate in \code{interimData}
 #' \item \code{eventPostRate}: a list with \code{length(trtNames)} components (labeled by the levels of the \code{arm} variable in \code{interimData}) each of which is a numeric vector of length \code{nTrials} of the sampled treatment arm-specific posterior \emph{annual} event rates
 #' }
 #' \item \code{BetaOverBetaPlusTk}: a list with \code{length(trtNames)} components (labeled by the levels of the \code{arm} variable in \code{interimData}) each of which is the arm-specific weight placed on the prior mean event rate
@@ -1199,32 +1197,38 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
   for (j in 1:length(eventPriorWeight)){
     wt<-eventPriorWeight[j]
     # a list named 'trialObj'
-    load(paste0(fileDir,"/completeTrial_pooled_eventPriorRate=",eventPriorRate,"_eventPriorWt=",wt,".RData"))
+    load(file.path(fileDir, paste0("completeTrial_pooled_eventPriorRate=", eventPriorRate, "_eventPriorWt=", wt, ".RData")))
     legend.Prior.weight<-trialObj$BetaOverBetaPlusTk
     TNI<-rep(NA,length(trialObj$trialData))
 
-    if(is.null(eventTimeFrame)){
-      if(eventPPcohort==FALSE){
-      for (i in 1:length(TNI)){
-        TNI[i]<-sum(trialObj$trialData[[i]]$event)
-      }}
-      if(eventPPcohort==TRUE){
-        if(!"pp" %in% colnames(trialObj$trialData[[1]])){
-          stop("trialData does not have a variable named 'pp'.")
-        }else{
-          TNI[i]<-sum( trialObj$trialData[[i]]$event[trialObj$trialData[[i]]$pp==1])
-        }}
-    }else{
-      if(eventPPcohort==FALSE){
+    if (is.null(eventTimeFrame)){
+      if (!eventPPcohort){
         for (i in 1:length(TNI)){
-          TNI[i]<-sum(trialObj$trialData[[i]]$event[trialObj$trialData[[i]]$entry>=eventTimeFrame[1] & trialObj$trialData[[i]]$exit<=eventTimeFrame[2]])
-        }}
-      if(eventPPcohort==TRUE){
-        if(!"pp" %in% colnames(trialObj$trialData[[1]])){
+          TNI[i]<-sum(trialObj$trialData[[i]]$event)
+        }
+      } else {
+        if (!"pp" %in% colnames(trialObj$trialData[[1]])){
           stop("trialData does not have a variable named 'pp'.")
-        }else{
-          TNI[i]<-sum( trialObj$trialData[[i]]$event[trialObj$trialData[[i]]$entry>=eventTimeFrame[1] & trialObj$trialData[[i]]$exit<=eventTimeFrame[2] & trialObj$trialData[[i]]$pp==1])
-        }}
+        }
+        for (i in 1:length(TNI)){
+          TNI[i]<-sum(subset(trialObj$trialData[[i]], pp==1)$event)
+        }
+      }
+    } else {
+      if (!eventPPcohort){
+        for (i in 1:length(TNI)){
+          trialObj$trialData[[i]]$eventTime <- trialObj$trialData[[i]]$exit - trialObj$trialData[[i]]$entry
+          TNI[i]<-sum(subset(trialObj$trialData[[i]], eventTime >= eventTimeFrame[1] & eventTime <= eventTimeFrame[2])$event)
+        }
+      } else {
+        if (!"pp" %in% colnames(trialObj$trialData[[1]])){
+          stop("trialData does not have a variable named 'pp'.")
+        }
+        for (i in 1:length(TNI)){
+          trialObj$trialData[[i]]$eventTime <- trialObj$trialData[[i]]$exit - trialObj$trialData[[i]]$entry
+          TNI[i] <- sum(subset(trialObj$trialData[[i]], eventTime >= eventTimeFrame[1] & eventTime <= eventTimeFrame[2] & pp==1)$event)
+        }
+      }
     }
 
     rm(trialObj)
@@ -1456,9 +1460,10 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
 #' Takes the output from the \code{\link{completeTrial.byArm}} function and generates a plot describing characteristics of the estimated distribution of the treatment arm-specific number of endpoints.
 #'
 #' @param arm a character string matching a treatment label in the \code{arm} variable in \code{interimData} that indicates the treatment arm for which the plot will be generated
+#' @param trtNames a character vector of all treatment labels listed in the same order as in \code{trtNames} in \code{\link{completeTrial.byArm}}
 #' @param eventTimeFrame a time frame within which endpoints are counted, specified in weeks as \code{c(start, end)}. If \code{NULL} (default), then all endpoints are counted.
 #' @param eventPPcohort a logical value. If \code{TRUE}, only endpoints in the per-protocol cohort are counted. The default value is \code{FALSE}.
-#' @param eventPriorRate a numeric vector of treatment arm-specific prior mean incidence rates for the endpoint, expressed as numbers of events per person-year at risk, with the arms in the same order as in the equally named input argument in the \code{\link{completeTrial.byArm}} function
+#' @param eventPriorRate a numeric vector of treatment arm-specific prior mean incidence rates for the endpoint, expressed as numbers of events per person-year at risk, matching the order of treatment arms in \code{trtNames}
 #' @param eventPriorWeight a numeric vector in which each value represents a weight (i.e., a separate scenario) assigned to the prior gamma distribution of the treatment arm-specific event rate at the time when 50\% of the estimated person-time at risk in the given \code{arm} has been accumulated
 #' @param xlim a numeric vector of the form \code{c(xmin, xmax)} for the user-specified x-axis limits. If \code{NULL} (default), then the computed range of x-axis values will be used.
 #' @param xlab a character string for the user-specified x-axis label. If \code{NULL} (default), then the label "Number of Infections in Group \code{arm} (n)" will be used.
@@ -1495,13 +1500,14 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
 #' pdf(file=paste0("./","rcdf_byArm_arm=T1_",
 #' "eventPriorRateC3=0.06_eventPriorRateT1=0.03_eventPriorRateT2=0.03.pdf"), width=6,
 #' height=5)
-#' plotRCDF.byArm(arm="T1", eventPriorRate=c(0.06,0.03,0.03), eventPriorWeight=weights,
-#' fileDir="./")
+#' plotRCDF.byArm(arm="T1", trtNames=c("C3","T1","T2"), eventPriorRate=c(0.06,0.03,0.03),
+#' eventPriorWeight=weights, fileDir="./")
 #' dev.off()
 #'
 #' @seealso \code{\link{completeTrial.byArm}} and \code{\link{plotRCDF.pooledArms}}
 #' @export
 plotRCDF.byArm<-function(arm,
+                         trtNames,
                          eventTimeFrame=NULL,
                          eventPPcohort=FALSE,
                          eventPriorRate,
@@ -1510,40 +1516,48 @@ plotRCDF.byArm<-function(arm,
                          xlab=NULL,
                          ylab=NULL,
                          fileDir){
+  if (!(arm %in% trtNames)){ stop("'arm' is not included in 'trtNames'.") }
+
   #plot arm
   dat  <- vector("list", length(eventPriorWeight))
 
   for (j in 1:length(eventPriorWeight)){
     wt<-eventPriorWeight[j]
 
-    fileName <- paste0("completeTrial_byArm_eventPriorRateC3=",eventPriorRate[1],"_eventPriorRateT1=",eventPriorRate[2],"_eventPriorRateT2=",eventPriorRate[3],"_eventPriorWt=",wt,".RData")
+    fileName <- paste0("completeTrial_byArm_", paste(paste0("eventPriorRate", trtNames, "=", eventPriorRate), collapse="_"), "_eventPriorWt=", wt, ".RData")
     if (file.exists(file.path(fileDir, fileName))){ load(file.path(fileDir, fileName)) }
 
-    legend.Prior.weight<-trialObj$BetaOverBetaPlusTk[switch(arm, C3=1, T1=2, T2=3)]
+    legend.Prior.weight<-trialObj$BetaOverBetaPlusTk[which(trtNames==arm)]
     TNI<-rep(NA,length(trialObj$trialData))
 
-    if(is.null(eventTimeFrame)){
-      if(eventPPcohort==FALSE){
-      for (i in 1:length(TNI)){
-        TNI[i]<-sum(trialObj$trialData[[i]]$event[trialObj$trialData[[i]]$arm==arm])
-      }}
-      if(eventPPcohort==TRUE){
-        if(!"pp" %in% colnames(trialObj$trialData[[1]])){
-          stop("trialData does not have a variable named 'pp'")
-        }else{
-          TNI[i]<-sum( trialObj$trialData[[i]]$event[trialObj$trialData[[i]]$pp==1 & trialObj$trialData[[i]]$arm==arm])
-        }}
-    }else{
-      if(eventPPcohort==FALSE){
+    if (is.null(eventTimeFrame)){
+      if (!eventPPcohort){
         for (i in 1:length(TNI)){
-          TNI[i]<-sum(trialObj$trialData[[i]]$event[trialObj$trialData[[i]]$entry>=eventTimeFrame[1] & trialObj$trialData[[i]]$exit<=eventTimeFrame[2] & trialObj$trialData[[i]]$arm==arm])
-        }}
-      if(eventPPcohort==TRUE){
-        if(!"pp" %in% colnames(trialObj$trialData[[1]])){
+          TNI[i] <- sum(subset(trialObj$trialData[[i]], arm==arm)$event)
+        }
+      } else {
+        if (!"pp" %in% colnames(trialObj$trialData[[1]])){
           stop("trialData does not have a variable named 'pp'")
-        }else{
-          TNI[i]<-sum( trialObj$trialData[[i]]$event[trialObj$trialData[[i]]$entry>=eventTimeFrame[1] & trialObj$trialData[[i]]$exit<=eventTimeFrame[2] & trialObj$trialData[[i]]$pp==1 & trialObj$trialData[[i]]$arm==arm])
-        }}
+        }
+        for (i in 1:length(TNI)){
+          TNI[i] <- sum(subset(trialObj$trialData[[i]], arm==arm & pp==1)$event)
+        }
+      }
+    } else {
+      if (!eventPPcohort){
+        for (i in 1:length(TNI)){
+          trialObj$trialData[[i]]$eventTime <- trialObj$trialData[[i]]$exit - trialObj$trialData[[i]]$entry
+          TNI[i] <- sum(subset(trialObj$trialData[[i]], eventTime >= eventTimeFrame[1] & eventTime <= eventTimeFrame[2] & arm==arm)$event)
+        }
+      } else {
+        if (!"pp" %in% colnames(trialObj$trialData[[1]])){
+          stop("trialData does not have a variable named 'pp'")
+        }
+        for (i in 1:length(TNI)){
+          trialObj$trialData[[i]]$eventTime <- trialObj$trialData[[i]]$exit - trialObj$trialData[[i]]$entry
+          TNI[i] <- sum(subset(trialObj$trialData[[i]], eventTime >= eventTimeFrame[1] & eventTime <= eventTimeFrame[2] & arm==arm & pp==1)$event)
+        }
+      }
     }
 
     rm(trialObj)
@@ -1608,7 +1622,8 @@ plotRCDF.byArm<-function(arm,
 
   tmp <- unique(tmp)
 
-  if(min(diff(sort(tmp)))>=3 | max(tmp)-min(tmp)==0){
+  # suppressWarnings() is used because if 'tmp' is of length 1, then diff() returns an empty vector, and 'min' issues a warning
+  if (suppressWarnings(min(diff(sort(tmp))))>=3 | max(tmp)-min(tmp)==0){
     axis(side=1, at=tmp, labels=tmp, tick=FALSE, line=-2, cex.axis=0.5)
   } else {
     if (length(tmp)==3){
@@ -1650,6 +1665,6 @@ plotRCDF.byArm<-function(arm,
   }else{mtext(xlab, side=1, las=0, line=2, cex=mycex2)}
   if(is.null(ylab)){mtext(paste0("P( Number of Infections in Group ",arm," >= n ) x 100"), side=2, las=0, line=2.5, cex=mycex2)
   }else{mtext(ylab, side=2, las=0, line=2.5, cex=mycex2)}
-  legend(0.75*max(x.label),0.9,legend=round(c(dat[[1]]$legend.Prior.weight,dat[[2]]$legend.Prior.weight,dat[[3]]$legend.Prior.weight),2), cex=0.7, col=colors, pch=pchar, lty=1, bty = "n",
+  legend(0.75*max(x.label),0.9,legend=round(sapply(dat, "[[", "legend.Prior.weight"), 2), cex=0.7, col=colors, pch=pchar, lty=1, bty = "n",
          title="Prior weight")
 }
