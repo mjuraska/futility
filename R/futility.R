@@ -5,7 +5,7 @@ NULL
 #' @import utils
 NULL
 
-globalVariables("trialObj")
+globalVariables(c("trialObj", "pp", "eventTime"))
 
 is.TRUE <- function(x){
   if ( !is.logical(x) ) stop("Argument to 'is.TRUE' must be of type Logical")
@@ -1143,6 +1143,7 @@ to_rcdf <- function(s, min){
 #' @param xlab a character string for the user-specified x-axis label. If \code{NULL} (default), then the label "Total Number of Infections (n)" will be used.
 #' @param ylab a character string for the user-specified y-axis label. If \code{NULL} (default), then the label "P( Total Number of Infections >= n ) x 100" will be used.
 #' @param power.lab a character string for the user-specified power-axis label. If \code{NULL} (default), then the label "Power for TE = \code{power.TE} (x 100)" will be used.
+#' @param xPosLegend a numeric value in \eqn{[0,1]} (0.67 by default) specifying the x-coordinate for the position of the legend
 #' @param fileDir a character string specifying a path for the input directory
 #'
 #' @return None. The function is called solely for plot generation.

@@ -32,6 +32,8 @@ plotRCDF.pooledArms(eventTimeFrame = NULL, eventPPcohort = FALSE,
 
 \item{power.lab}{a character string for the user-specified power-axis label. If \code{NULL} (default), then the label "Power for TE = \code{power.TE} (x 100)" will be used.}
 
+\item{xPosLegend}{a numeric value in \eqn{[0,1]} (0.67 by default) specifying the x-coordinate for the position of the legend}
+
 \item{fileDir}{a character string specifying a path for the input directory}
 }
 \value{
