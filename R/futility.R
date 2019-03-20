@@ -283,7 +283,7 @@ FillinInterimdata.Pooled <- function(interimData, rates, visitSchedule, visitSch
     if (ppAnalysis){
       if (!is.null(Seed)){ set.seed(Seed+10000) }
       interimData.filled$missVacc <- ifelse(interimData$missVacc==0 & is.na(interimData$pp), rbinom(NROW(interimData), 1, prob=missVaccProb), interimData$missVacc)
-      interimData.filled$pp <- ifelse(is.na(interimData$pp), as.numeric(interimData$missVacc==0 & interimData$exit - interimData$entry > ppAtRiskTimePoint), interimData$pp)
+      interimData.filled$pp <- ifelse(is.na(interimData.filled$pp), as.numeric(interimData.filled$missVacc==0 & interimData.filled$exit - interimData.filled$entry > ppAtRiskTimePoint), interimData.filled$pp)
     }
 
     out <- rbind(interimData.filled, out)
@@ -558,7 +558,7 @@ FillinInterimdata.byArm <- function(interimData, rates, visitSchedule, visitSche
     if (ppAnalysis){
       if (!is.null(Seed)){ set.seed(Seed+10000) }
       interimData.filled$missVacc <- ifelse(interimData$missVacc==0 & is.na(interimData$pp), rbinom(NROW(interimData), 1, prob=missVaccProb), interimData$missVacc)
-      interimData.filled$pp <- ifelse(is.na(interimData$pp), as.numeric(interimData$missVacc==0 & interimData$exit - interimData$entry > ppAtRiskTimePoint), interimData$pp)
+      interimData.filled$pp <- ifelse(is.na(interimData.filled$pp), as.numeric(interimData.filled$missVacc==0 & interimData.filled$exit - interimData.filled$entry > ppAtRiskTimePoint), interimData.filled$pp)
     }
 
     out <- rbind(interimData.filled, out)
