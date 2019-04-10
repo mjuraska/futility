@@ -5,7 +5,7 @@ NULL
 #' @import utils
 NULL
 
-globalVariables(c("trialObj", "pp", "eventTime"))
+globalVariables(c("trialObj", "pp", "eventTime", "arm"))
 
 is.TRUE <- function(x){
   if ( !is.logical(x) ) stop("Argument to 'is.TRUE' must be of type Logical")
