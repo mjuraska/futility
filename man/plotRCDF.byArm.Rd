@@ -4,12 +4,12 @@
 \alias{plotRCDF.byArm}
 \title{Plot Characteristics of the Estimated Distribution of the Treatment Arm-Specific Number of Endpoints}
 \usage{
-plotRCDF.byArm(arm, trtNames, eventTimeFrame = NULL,
+plotRCDF.byArm(armLabel, trtNames, eventTimeFrame = NULL,
   eventPPcohort = FALSE, eventPriorRate, eventPriorWeight, xlim = NULL,
   xlab = NULL, ylab = NULL, fileDir)
 }
 \arguments{
-\item{arm}{a character string matching a treatment label in the \code{arm} variable in \code{interimData} that indicates the treatment arm for which the plot will be generated}
+\item{armLabel}{a character string matching a treatment label in the \code{arm} variable in \code{interimData} that indicates the treatment arm for which the plot will be generated}
 
 \item{trtNames}{a character vector of all treatment labels listed in the same order as in \code{trtNames} in \code{\link{completeTrial.byArm}}}
 
@@ -23,9 +23,9 @@ plotRCDF.byArm(arm, trtNames, eventTimeFrame = NULL,
 
 \item{xlim}{a numeric vector of the form \code{c(xmin, xmax)} for the user-specified x-axis limits. If \code{NULL} (default), then the computed range of x-axis values will be used.}
 
-\item{xlab}{a character string for the user-specified x-axis label. If \code{NULL} (default), then the label "Number of Infections in Group \code{arm} (n)" will be used.}
+\item{xlab}{a character string for the user-specified x-axis label. If \code{NULL} (default), then the label "Number of Infections in Group \code{armLabel} (n)" will be used.}
 
-\item{ylab}{a character string for the user-specified y-axis label. If \code{NULL} (default), then the label "P(Number of Infections in Group \code{arm} >= n ) x 100" will be used.}
+\item{ylab}{a character string for the user-specified y-axis label. If \code{NULL} (default), then the label "P(Number of Infections in Group \code{armLabel} >= n ) x 100" will be used.}
 
 \item{fileDir}{a character string specifying a path for the input directory}
 }
@@ -63,7 +63,7 @@ for (j in 1:length(weights)){
 pdf(file=paste0("./","rcdf_byArm_arm=T1_",
 "eventPriorRateC3=0.06_eventPriorRateT1=0.03_eventPriorRateT2=0.03.pdf"), width=6,
 height=5)
-plotRCDF.byArm(arm="T1", trtNames=c("C3","T1","T2"), eventPriorRate=c(0.06,0.03,0.03),
+plotRCDF.byArm(armLabel="T1", trtNames=c("C3","T1","T2"), eventPriorRate=c(0.06,0.03,0.03),
 eventPriorWeight=weights, fileDir="./")
 dev.off()
 
