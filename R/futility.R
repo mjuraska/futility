@@ -596,6 +596,7 @@ FillinInterimdata.byArm <- function(interimData, rates, visitSchedule, visitSche
 #' @param missVaccProb a probability that a participant misses at least one vaccination. If \code{NULL} (default) and \code{ppAnalysis=TRUE}, then \code{missVaccProb} is calculated as the sample proportion of MITT participants in \code{interimData} with a missed vaccination using the \code{missVacc} variable. If \code{ppAnalysis=TRUE}, then the indicator of a missed vaccination for participants in \code{interimData} with \code{pp=NA} and future enrolled participants is sampled from the Bernoulli distribution with probability \code{missVaccProb}.
 #' @param ppAtRiskTimePoint a minimal follow-up time (in weeks) for a participant to qualify for inclusion in the per-protocol cohort (\code{NULL} by default)
 #' @param fuTime a follow-up time (in weeks) of each participant
+#' @param targetNevents an integer value specifying the target number of events in an event-driven design, the accrual of which triggers the primary analysis. The value is used exclusively for estimating the total person-time at risk accumulated for the primary analysis, which in turn is used for setting the values of the hyperparameters of the prior distribution.
 #' @param mixture a logical value indicating whether to use the robust mixture approach (see the vignette). If equal to \code{FALSE} (default), then \code{mix.weights} and \code{eventPriorWeightRobust} are ignored.
 #' @param mix.weights a numeric vector of length 2 representing prior weights (values in \eqn{[0,1]}) of the informative and the weakly informative component, respectively, of the prior gamma-mixture distribution of the treatment arm-pooled event rate. The two weights must sum up to 1. If \code{NULL} (default) and \code{mixture=TRUE}, then \code{c(0.8,0.2)} is used.
 #' @param eventPriorWeightRobust a numeric value representing the weight \eqn{w} used to calculate the \eqn{\beta} parameter of the weakly informative gamma distribution in the mixture prior. If \code{NULL} (default) and \code{mixture=TRUE}, then \eqn{1/200} is used.
@@ -691,6 +692,8 @@ completeTrial.pooledArms <-
 
     fuTime,
 
+    targetNevents=NULL,
+
     # this is a dummy variable to call the robust mixture approach
     mixture=FALSE,
 
@@ -757,9 +760,15 @@ completeTrial.pooledArms <-
       dropRate <- sum(interimData$dropout) / totFU
     }
 
-    d_star <- dropRate
-    # estimate the total person-weeks at risk in the completed data using the user-specified event rate, if available, or else the observed event rate in the interim data
-    T_star <- N * (1 - exp(-(d_star + eventPriorRate) * fuTime)) / (d_star + eventPriorRate)
+    # if fixed duration of participant follow-up, calculate 'T_star' after completed follow-up
+    if (is.null(targetNevents)){
+      d_star <- dropRate
+      # estimate the total person-weeks at risk in the completed data using the user-specified event rate, if available, or else the observed event rate in the interim data
+      T_star <- N * (1 - exp(-(d_star + eventPriorRate) * fuTime)) / (d_star + eventPriorRate)
+    } else {  # if the design is event-driven (i.e., primary analysis after a prespecified number of events), calculate 'T_star' required to accrue 'targetNevents' events
+      T_star <- targetNevents / eventPriorRate
+    }
+
 
     ## if mixture==TRUE then alpha and beta should become vectors
     ## furthermore the weights need to be updated as well.
@@ -864,7 +873,7 @@ completeTrial.pooledArms <-
     if (!is.null(saveDir)){
       if (is.null(saveFile)){
         # in the file name, eventPriorRate shows the per person-YEAR rate
-        saveFile <- paste0("completeTrial_pooled_eventPriorRate=", round(eventPriorRate * 52, 4), "_eventPriorWt=", round(eventPriorWeight, 3), ".RData")
+        saveFile <- paste0("completeTrial_pooled_eventPriorRate=", round(eventPriorRate * 52, 5), "_eventPriorWt=", round(eventPriorWeight, 2), ".RData")
       }
 
       save(trialObj, file=file.path(saveDir, saveFile))
@@ -1678,6 +1687,6 @@ plotRCDF.byArm<-function(armLabel,
   }else{mtext(xlab, side=1, las=0, line=2, cex=mycex2)}
   if(is.null(ylab)){mtext(paste0("P( Number of Infections in Group ",armLabel," >= n ) x 100"), side=2, las=0, line=2.5, cex=mycex2)
   }else{mtext(ylab, side=2, las=0, line=2.5, cex=mycex2)}
-  legend(0.75*max(x.label),0.9,legend=round(sapply(dat, "[[", "legend.Prior.weight"), 2), cex=0.7, col=colors, pch=pchar, lty=1, bty = "n",
+  legend(min(x.label) + 0.6 * (max(x.label) - min(x.label)),0.9,legend=round(sapply(dat, "[[", "legend.Prior.weight"), 2), cex=0.7, col=colors, pch=pchar, lty=1, bty = "n",
          title="Prior weight")
 }
