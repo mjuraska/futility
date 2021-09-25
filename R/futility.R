@@ -43,7 +43,8 @@ getVisitWeek <- function( week, visitWeeks, whichVisit=c("next","previous")){
   return(week)
 }
 
-FillinInterimdata.Pooled <- function(interimData, rates, visitSchedule, visitSchedule2 = NULL, Nppt, fuTime, ppAnalysis=FALSE, missVaccProb=NULL, ppAtRiskTimePoint=NULL, Seed = NULL){
+FillinInterimdata.Pooled <- function(interimData, rates, visitSchedule, visitSchedule2 = NULL, Nppt, fuTime, ppAnalysis=FALSE, missVaccProb=NULL,
+                                     ppAtRiskTimePoint=NULL, expectedDose2timePoint=NULL, Seed = NULL){
 
     ## Finish enrollment and get enrollment times
     Nenroll <- Nppt - NROW(interimData)
@@ -153,8 +154,10 @@ FillinInterimdata.Pooled <- function(interimData, rates, visitSchedule, visitSch
       # generate the indicator of membership in the per-protocol cohort
       if (ppAnalysis){
         if (!is.null(Seed)){ set.seed(Seed) }
+        # generate an indicator of a missed second dose for everyone regardless of whether
+        # they are expected for the second dose or not
         out$missVacc <- rbinom(NROW(out), 1, prob=missVaccProb)
-        out$pp <- as.numeric(out$missVacc==0 & out$exit - out$entry > ppAtRiskTimePoint)
+        out$pp <- as.numeric(out$missVacc==0 & out$exit - out$entry >= ppAtRiskTimePoint)
       }
     } else {
       out <- NULL
@@ -278,17 +281,30 @@ FillinInterimdata.Pooled <- function(interimData, rates, visitSchedule, visitSch
     #interimData.filled$exit[is.na(interimData$exit)]<-exit
     interimData.filled$exit[is.na(interimData$exit)]<-interimData.filled$entry[is.na(interimData$exit)]+adj.fUP+exit
 
-    #sanity check
-    summary(interimData.filled$exit[is.na(interimData$exit)]-interimData.filled$entry[is.na(interimData$exit)])
+    # sanity check
+    # summary(interimData.filled$exit[is.na(interimData$exit)]-interimData.filled$entry[is.na(interimData$exit)])
 
-    interimData.filled$event[is.na(interimData$exit)]<-event
-    interimData.filled$dropout[is.na(interimData$exit)]<-droppedout
+    interimData.filled$event[is.na(interimData$exit)] <- event
+    interimData.filled$dropout[is.na(interimData$exit)] <- droppedout
 
     # generate the indicator of membership in the per-protocol cohort
     if (ppAnalysis){
+      if (is.null(expectedDose2timePoint)){ stop("The argument 'expectedDose2timePoint' is missing.") }
       if (!is.null(Seed)){ set.seed(Seed+10000) }
-      interimData.filled$missVacc <- ifelse(interimData$missVacc==0 & is.na(interimData$pp), rbinom(NROW(interimData), 1, prob=missVaccProb), interimData$missVacc)
-      interimData.filled$pp <- ifelse(is.na(interimData.filled$pp), as.numeric(interimData.filled$missVacc==0 & interimData.filled$exit - interimData.filled$entry > ppAtRiskTimePoint), interimData.filled$pp)
+      # keep existing indicators of 'missVacc'; those won't change
+      # generate a new value (0 or 1) of 'missVacc' if it was missing and the second dose is expected now (i.e., follow-up > 30 days)
+      interimData.filled$missVacc <- ifelse(is.na(interimData.filled$missVacc) & interimData.filled$exit - interimData.filled$entry > expectedDose2timePoint,
+                                            rbinom(NROW(interimData.filled), 1, prob=missVaccProb),
+                                            interimData.filled$missVacc)
+      # keep existing  indicators of 'pp' (= the mFAS-PD2 cohort)
+      # generate a new value (0 or 1 or NA) of 'pp' if it was missing as follows:
+      # if 'missVacc' is missing, then there is insufficient follow-up, no second dose administered, and the participant cannot be in mFAS-PD2
+      # if the participant has not missed the second dose AND is in follow-up beyond 'ppAtRiskTimePoint' weeks, then they are in mFAS-PD2
+      interimData.filled$pp <- ifelse(is.na(interimData.filled$pp),
+                                      ifelse(is.na(interimData.filled$missVacc),
+                                             0,
+                                             as.numeric(interimData.filled$missVacc==0 & interimData.filled$exit - interimData.filled$entry >= ppAtRiskTimePoint)),
+                                      interimData.filled$pp)
     }
 
     out <- rbind(interimData.filled, out)
@@ -593,8 +609,9 @@ FillinInterimdata.byArm <- function(interimData, rates, visitSchedule, visitSche
 #' @param eventPriorRate a numeric value of a treatment arm-pooled prior mean incidence rate for the endpoint, expressed as the number of events per person-year at risk. If \code{NULL} (default), then use the observed rate in \code{interimData}.
 #' @param fixedDropOutRate the pre-trial assumed annual dropout rate. If \code{NULL} (default), then the observed treatment arm-pooled dropout rate is used.
 #' @param ppAnalysis a logical value (\code{FALSE} by default) indicating whether an indicator of membership in the per-protocol cohort shall be generated based on complete MITT data. If \code{TRUE}, then \code{interimData} must include two additional variables: \code{missVacc} (an indicator of a missed vaccination) and \code{pp} (an indicator of membership in the per-protocol cohort; \code{NA} for participants with an indeterminate status).
-#' @param missVaccProb a probability that a participant misses at least one vaccination. If \code{NULL} (default) and \code{ppAnalysis=TRUE}, then \code{missVaccProb} is calculated as the sample proportion of MITT participants in \code{interimData} with a missed vaccination using the \code{missVacc} variable. If \code{ppAnalysis=TRUE}, then the indicator of a missed vaccination for participants in \code{interimData} with \code{pp=NA} and future enrolled participants is sampled from the Bernoulli distribution with probability \code{missVaccProb}.
+#' @param missVaccProb a probability that a participant misses at least one vaccination. If \code{NULL} (default) and \code{ppAnalysis=TRUE}, then \code{missVaccProb} is calculated as the sample proportion of MITT participants in \code{interimData} who were expected for the second vaccination and missed it, using the \code{missVacc} variable. If \code{ppAnalysis=TRUE}, then the indicator of a missed vaccination for participants in \code{interimData} with \code{pp=NA} and future enrolled participants is sampled from the Bernoulli distribution with probability \code{missVaccProb}.
 #' @param ppAtRiskTimePoint a minimal follow-up time (in weeks) for a participant to qualify for inclusion in the per-protocol cohort (\code{NULL} by default)
+#' @param expectedDose2timePoint a numeric value specifying the follow-up time (in weeks) at which a participant is considered expected for the second dose, i.e., when the visit window of the second vaccination visit has closed (\code{NULL} by default). It must be provided if \code{ppAnalysis=TRUE}.
 #' @param fuTime a follow-up time (in weeks) of each participant
 #' @param targetNevents an integer value specifying the target number of events in an event-driven design, the accrual of which triggers the primary analysis. The value is used exclusively for estimating the total person-time at risk accumulated for the primary analysis, which in turn is used for setting the values of the hyperparameters of the prior distribution.
 #' @param mixture a logical value indicating whether to use the robust mixture approach (see the vignette). If equal to \code{FALSE} (default), then \code{mix.weights} and \code{eventPriorWeightRobust} are ignored.
@@ -604,6 +621,7 @@ FillinInterimdata.byArm <- function(interimData, rates, visitSchedule, visitSche
 #' @param visitSchedule2 a numeric vector of visit weeks at which testing for the endpoint is conducted in a subset of participants (e.g., those who discontinue administration of the study product but remain in follow-up). If \code{NULL} (default), everyone is assumed to follow \code{visitSchedule}.
 #' @param saveFile a character string specifying an \code{.RData} file storing the output list. If \code{NULL} and \code{saveDir} is specified, the file name will be generated. If, in turn, \code{saveFile} is specified but \code{saveDir} equals \code{NULL}, then \code{saveFile} is ignored, and the output list will be returned.
 #' @param saveDir a character string specifying a path for the output directory. If supplied, the output is saved as an \code{.RData} file in the directory; otherwise the output is returned as a list.
+#' @param saveDataChars a logical value (\code{FALSE} by default) for whether a file named \code{dataChars.RData} shall be generated with metrics characterizing the interim data for inclusion in the output report. If \code{TRUE}, the file is saved in \code{saveDir}.
 #' @param randomSeed seed of the random number generator for simulation reproducibility
 #'
 #' @return If \code{saveDir} is specified, the output list (named \code{trialObj}) is saved as an \code{.RData} file; otherwise it is returned. The output object is a list with the following components:
@@ -690,6 +708,8 @@ completeTrial.pooledArms <-
 
     ppAtRiskTimePoint = NULL,
 
+    expectedDose2timePoint=NULL,
+
     fuTime,
 
     targetNevents=NULL,
@@ -714,6 +734,7 @@ completeTrial.pooledArms <-
 
     saveFile= NULL,
     saveDir = NULL,
+    saveDataChars=FALSE,
     randomSeed = NULL ){
     ## define 'eps' (epsilon) a fudge-factor used where we're concerned with the limits
     ## of floating point accuracy
@@ -745,6 +766,32 @@ completeTrial.pooledArms <-
       # calculate weekly event rate based on observed event rate
       # T_k is in weeks
       eventPriorRate <- n_k / T_k #events/person-week
+
+      if (saveDataChars){
+        dataChars <- list(nFAS=NROW(interimData),
+                          nEvents=n_k,
+                          PYRs=T_k / 52,
+                          obsEventRatePerPYR=eventPriorRate * 52,
+                          nCensored=sum(interimData$dropout))
+
+        if (ppAnalysis){
+          # calculate PYRs for the observed incidence rate of primary endpoints
+          # the time origin for person-time at risk is 14 days post-dose 2
+          tFUpp <- ifelse(interimData$pp==1,
+                          ifelse(interimData$followup==1, interimData$last_visit_dt - (interimData$timeDose2 + 2), interimData$exit - (interimData$timeDose2 + 2)),
+                          0)
+          totFUpp <- sum(tFUpp, na.rm=TRUE)
+          nPPevents <- NROW(subset(interimData, event==1 & pp==1))
+
+          dataChars$nPP <- NROW(subset(interimData, pp==1))
+          dataChars$nPPevents <- nPPevents
+          dataChars$ppPYRs <- totFUpp / 52
+          dataChars$obsPrimaryEventRatePerPYR <- nPPevents / (totFUpp / 52)
+          dataChars$nPPcensored <- NROW(subset(interimData, dropout==1 & pp==1))
+        }
+
+        save(dataChars, file=file.path(saveDir, "dataChars.RData"))
+      }
     } else {
       #change unit of per person-year to per person-week
       eventPriorRate <- eventPriorRate / 52
@@ -760,7 +807,7 @@ completeTrial.pooledArms <-
       dropRate <- sum(interimData$dropout) / totFU
     }
 
-    # if fixed duration of participant follow-up, calculate 'T_star' after completed follow-up
+    # if fixed duration of participant follow-up, calculate 'T_star' (in weeks) after completed follow-up
     if (is.null(targetNevents)){
       d_star <- dropRate
       # estimate the total person-weeks at risk in the completed data using the user-specified event rate, if available, or else the observed event rate in the interim data
@@ -841,7 +888,9 @@ completeTrial.pooledArms <-
 
       if (ppAnalysis){
         if (is.null(missVaccProb)){
-          missVaccProb <- sum(interimData$missvac, na.rm=TRUE) / NROW(interimData)
+          # proportion of missing vaccinations among expected vaccinations
+          # missVacc = NA means the vaccination isn't expected yet (i.e., the vaccination visit window hasn't closed yet)
+          missVaccProb <- sum(interimData$missVacc, na.rm=TRUE) / length(na.omit(interimData$missVacc))
         }
       }
 
@@ -855,6 +904,7 @@ completeTrial.pooledArms <-
                                       ppAnalysis = ppAnalysis,
                                       missVaccProb = missVaccProb,
                                       ppAtRiskTimePoint = ppAtRiskTimePoint,
+                                      expectedDose2timePoint=expectedDose2timePoint,
                                       Seed = randomSeed+i)
 
       ## store sampled posterior event rate
@@ -1156,8 +1206,10 @@ to_rcdf <- function(s, min){
 #' @param eventTimeFrame a time frame within which endpoints are counted, specified in weeks as \code{c(start, end)}. If \code{NULL} (default), then all endpoints are counted.
 #' @param eventPPcohort a logical value. If \code{TRUE}, only endpoints in the per-protocol cohort are counted. The default value is \code{FALSE}.
 #' @param target a vector of target numbers of endpoints for reporting of the estimated probability that the total number of endpoints will be \eqn{\ge} \code{target}, with a 95\% credible interval
-#' @param power.axis a logical value. If \code{TRUE} (default), then a top axis is added to the plot, showing power to reject \eqn{H_0}: TE \eqn{\le} 0\% using a 1-sided 0.025-level Wald test if TE = \code{power.TE} throughout the trial.
-#' @param power.TE a numeric value of treatment efficacy for which power is shown on the top axis. If \code{power.axis} is \code{FALSE}, then \code{power.TE} is ignored.
+#' @param power.axis a logical value. If \code{TRUE} (default), then a top axis is added to the plot, showing power to reject \eqn{H_0}: TE \eqn{\le} \code{null.TE} using a 1-sided 0.025-level Wald test if TE = \code{power.TE} throughout the trial.
+#' @param null.TE a numeric value of treatment efficacy (zero by default) specifying the null hypothesis if \code{power.axis} is \code{TRUE}
+#' @param power.TE a numeric vector of treatment efficacy levels for which power is shown on the top axis. If \code{power.axis} is \code{FALSE}, then \code{power.TE} is ignored.
+#' @param pRandTx a numeric value specifying the probability of being randomized into the treatment group. If \code{power.axis} is \code{FALSE}, then \code{pRandTx} is ignored.
 #' @param eventPriorRate a numeric value of the treatment arm-pooled prior mean incidence rate for the endpoint, expressed as the number of events per person-year at risk
 #' @param eventPriorWeight a numeric vector in which each value represents a weight (i.e., a separate scenario) assigned to the prior gamma distribution of the treatment arm-pooled event rate at the time when 50\% of the estimated total person-time at risk has been accumulated
 #' @param xlim a numeric vector of the form \code{c(xmin, xmax)} for the user-specified x-axis limits. If \code{NULL} (default), then the computed range of x-axis values will be used.
@@ -1203,8 +1255,12 @@ to_rcdf <- function(s, min){
 plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count events, in a format of c(start, end), in weeks. If null, then count all events.
                                 eventPPcohort=FALSE,
                                 target,
+                                plotTarget=TRUE,
                                 power.axis=TRUE,
+                                null.TE=0,
                                 power.TE=NULL,
+                                pRandTx=NULL,
+                                outDate,
                                 eventPriorRate,
                                 eventPriorWeight,
                                 xlim=NULL,
@@ -1218,8 +1274,10 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
 
   for (j in 1:length(eventPriorWeight)){
     wt<-eventPriorWeight[j]
+
     # a list named 'trialObj'
-    load(file.path(fileDir, paste0("completeTrial_pooled_eventPriorRate=", eventPriorRate, "_eventPriorWt=", wt, ".RData")))
+    load(file.path(fileDir, paste0("censorTrial_", outDate, "_pooled_eventPriorRate=", eventPriorRate, "_eventPriorWt=", wt, ".RData")))
+
     legend.Prior.weight<-trialObj$BetaOverBetaPlusTk
     TNI<-rep(NA,length(trialObj$trialData))
 
@@ -1287,18 +1345,26 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
     myxlim<-xlim
   }
 
-  tmp<-seq(10,200,10)
-  tmp<-tmp[tmp>=(myxlim[1]+5) & tmp<=(myxlim[2]-6)]
+  if (diff(myxlim)<180){
+    tmp <- seq(10, 1000, 10)
+    tmp <- tmp[tmp>=myxlim[1] + 10 & tmp<=myxlim[2] - 10]
+  } else if (diff(myxlim)>=180 && diff(myxlim)<1000){
+    tmp <- seq(50, 2000, 50)
+    tmp <- tmp[tmp>=myxlim[1] + 50 & tmp<=myxlim[2] - 50]
+  } else {
+    tmp <- seq(250, 5000, 250)
+    tmp <- tmp[tmp>=myxlim[1] + 250 & tmp<=myxlim[2] - 250]
+  }
 
   x.label<-c(myxlim[1],tmp,myxlim[2])
   colors<-c("blue","red","seagreen")
   pchar <- 15:17
 
   #par(fig=c(0.1,1,0,1))
-  par(mar=c(2.5,2.8,2.5,0.5),oma=c(1,1,1,1),las=1)
+  par(mar=c(2.5,3.5,1.5 + length(power.TE),0.5),oma=c(1,1,1,1),las=1)
   mycex<-0.75
   mycex2<-1
-  plot(myxlim, c(0,1), type="n", main="", axes=FALSE,xlab="", ylab="")
+  plot(myxlim, c(0,1), type="n", main="", axes=FALSE, xlab="", ylab="")
 
   # mean of x
   polygon(x=c(rep(min(x.label),2),rep(max(x.label),2)), y=c(0,-2,-2,0), border=NA, col="gray90")
@@ -1355,74 +1421,76 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
 
   #calculate the 3 y values for target
 
-  for(i in 1:length(target)){
-    mytarget<-target[i]
-    if(mytarget>=myxlim[1] & mytarget<=myxlim[2]){
-      targetY<-NULL
-      if (!(mytarget %in% x.label)){
-        offset <- 0.019*(max(x.label)-min(x.label))
-        axis(side=1, at=mytarget, labels=F,cex.axis=mycex)
-        axis(side=1, at=mytarget + ifelse(mytarget-x.label[which.min(abs(mytarget-x.label))]>0, offset, -offset), labels=mytarget, tick=FALSE, line=-1.1, cex.axis=0.7)
-      }
+  if (plotTarget){
+    for(i in 1:length(target)){
+      mytarget<-target[i]
+      if(mytarget>=myxlim[1] & mytarget<=myxlim[2]){
+        targetY<-NULL
+        if (!(mytarget %in% x.label)){
+          offset <- 0.019*(max(x.label)-min(x.label))
+          axis(side=1, at=mytarget, labels=F,cex.axis=mycex)
+          axis(side=1, at=mytarget + ifelse(mytarget-x.label[which.min(abs(mytarget-x.label))]>0, offset, -offset), labels=mytarget, tick=FALSE, line=-1.1, cex.axis=0.7)
+        }
 
-      for(j in 1:length(dat)){
-        if(length(unique(dat[[j]]$TNI_rcdf$RCDF[dat[[j]]$TNI_rcdf$var==mytarget]))==1){
-          targetY<-c(targetY,unique(dat[[j]]$TNI_rcdf$RCDF[dat[[j]]$TNI_rcdf$var==mytarget]))
-        }else{
-          if(min(dat[[j]]$TNI_rcdf$var)<mytarget){
-            target2<-max(dat[[j]]$TNI_rcdf$var[dat[[j]]$TNI_rcdf$var<mytarget])
-            targetY<-c(targetY,unique(dat[[j]]$TNI_rcdf$RCDF[dat[[j]]$TNI_rcdf$var==target2]))
+        for(j in 1:length(dat)){
+          if(length(unique(dat[[j]]$TNI_rcdf$RCDF[dat[[j]]$TNI_rcdf$var==mytarget]))==1){
+            targetY<-c(targetY,unique(dat[[j]]$TNI_rcdf$RCDF[dat[[j]]$TNI_rcdf$var==mytarget]))
           }else{
-            targetY<-c(targetY,1)
-          }
-        }
-      }
-
-      segments(x0=mytarget, y0=0, y1=1.2, col="gray60", lty="dotted", lwd=1.5)
-      atValue <- rep(NA,3)
-      for(j in 1:length(dat)){
-        lines(x=c(-10,mytarget),y=rep(targetY[j],2), col=colors[j])
-        axis(side=2, at=targetY[j], labels=F,cex.axis=mycex, col=colors[j])
-        # if targetY equals one of the plotted tick labels, do not duplicate the tick label
-        if (!(targetY[j] %in% yTicks)){
-          # if 'targetY[j]' is too close to one of the plotted tick marks
-          if (min(abs(targetY[j]-yTicks))<=0.01){
-            atValue[j] <- targetY[j] + ifelse(targetY[j]-yTicks[which.min(abs(targetY[j]-yTicks))]<0, -0.022, 0.022)
-          } else if (min(abs(targetY[j]-yTicks))>0.01 & min(abs(targetY[j]-yTicks))<0.04){
-            atValue[j] <- targetY[j] + ifelse(targetY[j]-yTicks[which.min(abs(targetY[j]-yTicks))]<0, -0.01, 0.01)
-          } else {
-            atValue[j] <- targetY[j]
-          }
-        }
-      }
-
-      idx <- which(!is.na(atValue))
-      atValue <- atValue[idx]
-      targetY <- targetY[idx]
-
-      idx <- which(as.numeric(format(100*targetY, digits=1, nsmall=1))==100)
-      if (length(idx)>0){
-        atValue <- atValue[-idx]
-        targetY <- targetY[-idx]
-      }
-
-      # if there are any additional tickmarks to plot
-      if (length(atValue)>0){
-        if( (max(targetY)-min(targetY)) > 0.05 | max(targetY)-min(targetY)==0){
-          axis(side=2, at=atValue, labels=format(100*targetY, digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
-        }else{
-          atValue <- atValue[order(targetY)]
-          targetY <- sort(targetY)
-          if (length(atValue)==2){
-            if (format(100*targetY[2], digits=1, nsmall=1) != format(100*targetY[1], digits=1, nsmall=1)){
-              axis(side=2, at=atValue[1]-0.01, labels=format(100*targetY[1], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
-              axis(side=2, at=atValue[2]+0.01, labels=format(100*targetY[2], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
-            } else {
-              axis(side=2, at=atValue[1], labels=format(100*targetY[1], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
+            if(min(dat[[j]]$TNI_rcdf$var)<mytarget){
+              target2<-max(dat[[j]]$TNI_rcdf$var[dat[[j]]$TNI_rcdf$var<mytarget])
+              targetY<-c(targetY,unique(dat[[j]]$TNI_rcdf$RCDF[dat[[j]]$TNI_rcdf$var==target2]))
+            }else{
+              targetY<-c(targetY,1)
             }
-          } else {
-            axis(side=2, at=atValue[c(1,3)]+c(-0.01,0.01), labels=format(100*targetY[c(1,3)], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
-            axis(side=2, at=atValue[2], labels=format(100*targetY[2], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
+          }
+        }
+
+        segments(x0=mytarget, y0=0, y1=1.2, col="gray60", lty="dotted", lwd=1.5)
+        atValue <- rep(NA,3)
+        for(j in 1:length(dat)){
+          lines(x=c(-10,mytarget),y=rep(targetY[j],2), col=colors[j])
+          axis(side=2, at=targetY[j], labels=F,cex.axis=mycex, col=colors[j])
+          # if targetY equals one of the plotted tick labels, do not duplicate the tick label
+          if (!(targetY[j] %in% yTicks)){
+            # if 'targetY[j]' is too close to one of the plotted tick marks
+            if (min(abs(targetY[j]-yTicks))<=0.01){
+              atValue[j] <- targetY[j] + ifelse(targetY[j]-yTicks[which.min(abs(targetY[j]-yTicks))]<0, -0.022, 0.022)
+            } else if (min(abs(targetY[j]-yTicks))>0.01 & min(abs(targetY[j]-yTicks))<0.04){
+              atValue[j] <- targetY[j] + ifelse(targetY[j]-yTicks[which.min(abs(targetY[j]-yTicks))]<0, -0.01, 0.01)
+            } else {
+              atValue[j] <- targetY[j]
+            }
+          }
+        }
+
+        idx <- which(!is.na(atValue))
+        atValue <- atValue[idx]
+        targetY <- targetY[idx]
+
+        idx <- which(as.numeric(format(100*targetY, digits=1, nsmall=1))==100)
+        if (length(idx)>0){
+          atValue <- atValue[-idx]
+          targetY <- targetY[-idx]
+        }
+
+        # if there are any additional tickmarks to plot
+        if (length(atValue)>0){
+          if( (max(targetY)-min(targetY)) > 0.05 | max(targetY)-min(targetY)==0){
+            axis(side=2, at=atValue, labels=format(100*targetY, digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
+          }else{
+            atValue <- atValue[order(targetY)]
+            targetY <- sort(targetY)
+            if (length(atValue)==2){
+              if (format(100*targetY[2], digits=1, nsmall=1) != format(100*targetY[1], digits=1, nsmall=1)){
+                axis(side=2, at=atValue[1]-0.01, labels=format(100*targetY[1], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
+                axis(side=2, at=atValue[2]+0.01, labels=format(100*targetY[2], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
+              } else {
+                axis(side=2, at=atValue[1], labels=format(100*targetY[1], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
+              }
+            } else {
+              axis(side=2, at=atValue[c(1,3)]+c(-0.01,0.01), labels=format(100*targetY[c(1,3)], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
+              axis(side=2, at=atValue[2], labels=format(100*targetY[2], digits=1, nsmall=1), tick=FALSE, line=-0.4, cex.axis=0.5)
+            }
           }
         }
       }
@@ -1433,45 +1501,90 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
 
   if(is.null(xlab)){mtext("Total Number of Infections (n)", side=1, las=0, line=2, cex=mycex2)
     }else{mtext(xlab, side=1, las=0, line=2, cex=mycex2)}
-  if(is.null(ylab)){mtext("P( Total Number of Infections >= n ) x 100", side=2, las=0, line=2.5, cex=mycex2)
-  }else{mtext(ylab, side=2, las=0, line=2.5, cex=mycex2)}
+  if(is.null(ylab)){mtext("P( Total Number of Infections >= n ) x 100", side=2, las=0, line=2.2, cex=mycex2)
+  }else{mtext(ylab, side=2, las=0, line=2.2, cex=mycex2)}
 
-  legend((xPosLegend+0.1)*max(x.label),0.9,legend=round(c(dat[[1]]$legend.Prior.weight,dat[[2]]$legend.Prior.weight,dat[[3]]$legend.Prior.weight),2), cex=0.7, col=colors, pch=pchar,
+  legend(min(x.label) + (xPosLegend+0.1) * (max(x.label) - min(x.label)),0.9,legend=round(c(dat[[1]]$legend.Prior.weight,dat[[2]]$legend.Prior.weight,dat[[3]]$legend.Prior.weight),2), cex=0.7, col=colors, pch=pchar,
          lty=1, bty = "n", title="Prior weight")
 
-  legend.text <- NULL
-  for (j in 1:length(dat)){
-    legend.text <- c(legend.text, paste0("P(>=",target[1],") = ",format(dat[[j]]$target.p[[1]]$p*100, digits=1, nsmall=1-(dat[[j]]$target.p[[1]]$p>=0.9995)),"% (95% CI, ",format(dat[[j]]$target.p[[1]]$p.CI[1]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[1]]$p.CI[1]>=0.9995))," to ",format(dat[[j]]$target.p[[1]]$p.CI[2]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[1]]$p.CI[2]>=0.9995)),")","\n",
-                                         "P(>=",target[2],") = ",format(dat[[j]]$target.p[[2]]$p*100, digits=1, nsmall=1-(dat[[j]]$target.p[[2]]$p>=0.9995)),"% (95% CI, ",format(dat[[j]]$target.p[[2]]$p.CI[1]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[2]]$p.CI[1]>=0.9995))," to ",format(dat[[j]]$target.p[[2]]$p.CI[2]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[2]]$p.CI[2]>=0.9995)),")"))
+  if (plotTarget){
+    legend.text <- NULL
+    for (j in 1:length(dat)){
+      legend.text <- c(legend.text, paste0("P(>=",target[1],") = ",format(dat[[j]]$target.p[[1]]$p*100, digits=1, nsmall=1-(dat[[j]]$target.p[[1]]$p>=0.9995)),"% (95% CI, ",format(dat[[j]]$target.p[[1]]$p.CI[1]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[1]]$p.CI[1]>=0.9995))," to ",format(dat[[j]]$target.p[[1]]$p.CI[2]*100, digits=1, nsmall=1-(dat[[j]]$target.p[[1]]$p.CI[2]>=0.9995)),")"))
+    }
+    legend(min(x.label) + xPosLegend * (max(x.label) - min(x.label)), 0.7, lty=1, col=colors, pch=pchar, bty="n", cex=0.5, legend=legend.text, x.intersp=0.5, y.intersp=1.6, pt.cex=0.7)
   }
-  legend(xPosLegend*max(x.label), 0.7, lty=1, col=colors, pch=pchar, bty="n", cex=0.5, legend=legend.text, x.intersp=0.5, y.intersp=1.6, pt.cex=0.7)
 
   if(power.axis==TRUE){
     if(!is.numeric(power.TE)){
       stop("'power.TE' must be a numeric value when power.axis=TRUE.")
     }
-    #Calculate power each x.label value and target1 and target2
-    x.label2<-target
-    Zbeta1<-sqrt(x.label*(1/3)*(2/3)*(log(1-power.TE)^2))-qnorm(1-0.025)
-    x.label.power1<-100*pnorm(Zbeta1)
-    Zbeta2<-sqrt(x.label2*(1/3)*(2/3)*(log(1-power.TE)^2))-qnorm(1-0.025)
-    x.label.power2<-100*pnorm(Zbeta2)
-    axis(side=3, at=x.label, labels=FALSE, cex.axis=mycex)
-    axis(side=3, at=x.label[seq(1,length(x.label),by=2)], labels=round(x.label.power1[seq(1,length(x.label.power1),by=2)],0), tick=FALSE, line=-0.5, cex.axis=mycex)
-    axis(side=3, at=x.label[seq(2,length(x.label),by=2)], labels=round(x.label.power1[seq(2,length(x.label.power1),by=2)],0), tick=FALSE, line=-0.5, cex.axis=mycex)
 
-    for (k in 1:length(x.label2)){
-      if(x.label2[k]>myxlim[1] & x.label2[k]<myxlim[2]){
-        offset <- 0.019*(max(x.label)-min(x.label))
-        axis(side=3, at=x.label2[k], labels=FALSE, cex.axis=mycex)
-        axis(side=3, at=x.label2[k] + ifelse(x.label2[k]-x.label[which.min(abs(x.label2[k]-x.label))]>0, offset, -offset), labels=round(x.label.power2[k],0), tick=FALSE, line=-0.95, cex.axis=0.7)
+    if (is.null(pRandTx)){ stop("'pRandTx' must be specified for assessing power.") }
+
+    if (any(null.TE >= power.TE)){ stop("'null.TE' must be less than each component of 'power.TE' for the one-sided test of H0: TE <= null.TE.") }
+
+    # Calculate power for each x.label value and target1 and target2
+    # Schoenfeld (1983, Biometrics)
+    # 'Zbeta1' is a matrix with columns representing components of power.TE
+    Zbeta1 <- sapply(power.TE, function(TE, x.label, pRandTx, null.TE){
+      sqrt(x.label * pRandTx * (1 - pRandTx)) * (log(1 - null.TE) - log(1 - TE)) - qnorm(1 - 0.025)
+      }, x.label=x.label, pRandTx=pRandTx, null.TE=null.TE)
+    x.label.power1 <- 100 * pnorm(Zbeta1)
+
+    axis(side=3, at=x.label, labels=FALSE, cex.axis=mycex)
+
+    for (i in 1:length(power.TE)){
+      axis(side=3, at=x.label[seq(1, length(x.label), by=2)], labels=round(x.label.power1[seq(1, NROW(x.label.power1), by=2), i], 0),
+           tick=FALSE, line=-1.3 + 0.8 * i, cex.axis=mycex)
+      axis(side=3, at=x.label[seq(2, length(x.label), by=2)], labels=round(x.label.power1[seq(2, NROW(x.label.power1), by=2), i], 0),
+           tick=FALSE, line=-1.3 + 0.8 * i, cex.axis=mycex)
+      mtext(paste0(power.TE[i] * 100, "%"), side=3, outer=FALSE, line=-0.3 + 0.8 * i, at=min(x.label) - 0.13 * (max(x.label) - min(x.label)),
+            adj=0, cex=mycex)
+    }
+
+    mtext("VE", side=3, outer=FALSE, line=-0.3 + 0.8 * (length(power.TE) + 1), at=min(x.label) - 0.13 * (max(x.label) - min(x.label)), adj=0, cex=mycex)
+
+    # add power for targets
+    if (plotTarget && length(power.TE)==1){
+      x.label2<-target
+      Zbeta2 <- sqrt(x.label2 * pRandTx * (1 - pRandTx)) * (log(1 - null.TE) - log(1 - TE)) - qnorm(1 - 0.025)
+      x.label.power2 <- 100 * pnorm(Zbeta2)
+      for (k in 1:length(x.label2)){
+        if(x.label2[k]>myxlim[1] & x.label2[k]<myxlim[2]){
+          offset <- 0.019*(max(x.label)-min(x.label))
+          axis(side=3, at=x.label2[k], labels=FALSE, cex.axis=mycex)
+          axis(side=3, at=x.label2[k] + ifelse(x.label2[k]-x.label[which.min(abs(x.label2[k]-x.label))]>0, offset, -offset), labels=round(x.label.power2[k],0), tick=FALSE, line=-0.95, cex.axis=0.7)
+        }
       }
     }
+
     if(is.null(power.lab)){
-      mtext(paste0("Power for TE = ",100*power.TE,"% (x 100)"), side=3, las=0, line=1.8, cex=mycex2)
+      mtext(paste0("Power for TE = ",100*power.TE,"% (x 100)"), side=3, las=0, line=1 + 0.8 * length(power.TE), cex=mycex2)
     } else {
-      mtext(power.lab, side=3, las=0, line=1.8, cex=mycex2)
+      mtext(power.lab, side=3, las=0, line=1 + 0.8 * length(power.TE), cex=mycex2)
     }
+  }
+
+  if (file.exists(file.path(fileDir, "dataChars.RData"))){
+    load(file.path(fileDir, "dataChars.RData"))
+
+    w <- format(sapply(dat, "[[", "legend.Prior.weight"), digits=2, nsmall=2)
+    m <- sapply(dat, "[[", "mu.TNI")
+
+    if (is.null(dataChars$projections)){
+      # initialize the list 'projections' of data frames
+      dataChars$projections <- list()
+    }
+
+    if (is.null(dataChars$projections[[as.character(outDate)]])){
+      dataChars$projections[[as.character(outDate)]] <- data.frame("eventPriorRate"=eventPriorRate, "eventPriorWt"=w, "mu"=m)
+    } else if (NROW(dataChars$projections[[as.character(outDate)]])<9){
+      proj <- data.frame("eventPriorRate"=eventPriorRate, "eventPriorWt"=w, "mu"=m)
+      dataChars$projections[[as.character(outDate)]] <- rbind(dataChars$projections[[as.character(outDate)]], proj)
+    }
+
+    save(dataChars, file=file.path(fileDir, "dataChars.RData"))
   }
 }
 
