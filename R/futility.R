@@ -1321,8 +1321,8 @@ plotRCDF.pooledArms <- function(eventTimeFrame=NULL, #the time frame to count ev
     target.p  <- vector("list", length(target))
     for(k in 1:length(target)){
       p<-sum(TNI>=target[k])/length(TNI)
-      p.CI<- c(p-qnorm(0.975)*sqrt(p*(1-p)/length(TNI)),
-                      p+qnorm(0.975)*sqrt(p*(1-p)/length(TNI)))
+      p.CI<- c(p - max(qnorm(0.975)*sqrt(p*(1-p)/length(TNI)), 0),
+               p + min(qnorm(0.975)*sqrt(p*(1-p)/length(TNI)), 1))
       target.p[[k]]<-list(p=p,p.CI=p.CI)
     }
 
